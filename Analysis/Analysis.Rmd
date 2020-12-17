@@ -1,0 +1,93 @@
+---
+title: "Analysis"
+author: "Wuwei Zhang"
+date: "2020/12/16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First, I load data directly from the Data subfolder, and source code directly from from the Code subfolder.
+
+```{r, message=FALSE, warning=FALSE}
+# Load packages.
+library(dplyr)
+library(tidyr)
+library(randomForest)
+library(ggplot2)
+library(kableExtra)
+library(readr)
+# Load data.
+penguins_data <- load("../Data/my_penguins.rda")
+gapminder_data <- load("../Data/my_gapminder.rda")
+# Save data.
+write_csv(get(penguins_data), "../Data/my_penguins.csv")
+write_csv(get(gapminder_data), "../Data/my_gapminder.csv")
+# Source code.
+source("../Code/my_rf_cv.R")
+```
+
+I will use the `my_penguins` data and use `my_rf_cv` function to predict `body_mass_g` using `bill_length_mm`, `bill_depth_mm`, and `flipper_length_mm` with 2-fold cross validation, 5-fold cross validation, and 10-fold cross validation, respectively.
+
+For each k, run the function 30 times to generate 30 CV errors.
+
+```{r}
+k_2 <- rep(NA, 30)
+k_5 <- rep(NA, 30)
+k_10 <- rep(NA, 30)
+# For each k, run the function 30 times to generate 30 CV errors.
+for (i in 1:30) {
+  k_2[i] <- my_rf_cv(2)
+  k_5[i] <- my_rf_cv(5)
+  k_10[i] <- my_rf_cv(10)
+}
+# Store all results in a data frame.
+my_data <- data.frame("CV_error" = append(append(k_2, k_5), k_10),
+                      "k" = as.factor(rep(c(2, 5, 10), each = 30)))
+```
+
+Now, I will make 3 boxplots to display these data in an informative way. Each boxplot is associated with each value of $k$, representing 30 simulations. And save the graph.
+
+```{r fig2, fig.height = 3, fig.width = 5, fig.align = "center"}
+# Make 3 boxplots.
+ggplot(data = my_data, aes(x = k, y = CV_error)) +
+  geom_boxplot(fill = "lightblue") +
+  theme_bw(base_size = 15) +
+  labs(title = "CV Error by k-fold Cross-validation", 
+       x = "k-fold Cross-validation", 
+       y = "CV Error") +
+  theme(plot.title = element_text(hjust = 0.5))
+# Save the plot.
+ggsave("../Output/Figures/boxplots.png")
+```
+
+I want to use a table to display the average CV estimate and the standard deviation of the CV estimates across $k$. And save the table.
+
+```{r}
+# Make a table to display the average CV estimate and the standard deviation 
+# of the CV estimates.
+my_table <- cbind(c(mean(k_2), mean(k_5), mean(k_10)),
+                  c(sd(k_2), sd(k_5), sd(k_10)))
+colnames(my_table) <- c("mean", "standard deviation")
+rownames(my_table) <- c("k = 2", "k = 5", "k = 10")
+table <- kable_styling(kable(my_table))
+table
+# Save this table.
+saveRDS(table, file = "../Output/Results/table.rds")
+```
+
+* From the plot, 2-fold cross validation has both largest median and largest IQR of CV error, and 5-fold cross validation and 10-fold cross validation have close values of median and IQR. 
+* From the table, 2-fold cross validation has both largest mean and largest standard deviation of CV error and 5-fold cross validation and 10-fold cross validation have close values of mean and standard deviation. 
+* Altogether, 2-fold cross validation generates the largest CV error and has the most variability. 5-fold cross validation and 10-fold cross validation generate close CV errors and have relatively less variability.
+* This result seems reasonable. Due to bias-variance tradeoff, using less data to fit the model would increase bias, so with only 2 folds, the test error would increase. Therefore, using `k = 5` or `k = 10` tend to result in an ideal balance in terms of the bias-variance tradeoff.
+
+Finally, Save my simulation results.
+
+```{r}
+# Save simulation results.
+result <- as.data.frame(cbind(k_2, k_5, k_10))
+write_csv(result, "../Output/Results/simulations.csv")
+```
+
